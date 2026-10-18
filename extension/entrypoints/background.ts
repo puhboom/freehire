@@ -216,9 +216,18 @@ function errorMessage(err: unknown): string {
  * Attaches the caller's tailored CV for `jobSlug` to the current page's upload field.
  * See lib/tools/attachCv.ts and openspec/changes/extension-attach-tailored-cv/design.md
  * for why this needs the debugging protocol at all.
+ *
+ * Firefox does not implement the Chrome debugging protocol (`browser.debugger` is
+ * undefined there, and the `debugger` permission is not in its manifest), so this
+ * action is unavailable on Firefox — refuse early with a clear message rather than
+ * failing with an obscure "not a function" deep in the call.
  */
 async function attachTailoredCV(jobSlug: string): Promise<RuntimeMessage> {
   const fail = (error: string): RuntimeMessage => ({ kind: 'ATTACH_TAILORED_CV_RESULT', ok: false, error });
+
+  if (!browser.debugger) {
+    return fail('Attaching a tailored CV is not available in Firefox — open the job page in Chrome instead.');
+  }
 
   const token = await getToken();
   if (!token) return fail('not signed in');

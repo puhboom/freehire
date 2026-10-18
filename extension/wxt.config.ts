@@ -1,6 +1,11 @@
 import { defineConfig, type UserManifest } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
 
+/** Which browser this build targets: `chrome` (default) or `firefox`.
+ *  Set `WXT_BROWSER=firefox` to build the Firefox variant — e.g.
+ *  `WXT_BROWSER=firefox npm run build:firefox`. */
+const BROWSER = (process.env.WXT_BROWSER as 'chrome' | 'firefox') ?? 'chrome';
+
 /**
  * Pins a deterministic extension id, which is what makes the
  * `https://<id>.chromiumapp.org` redirect stable — hire allowlists that id, and
@@ -15,24 +20,41 @@ import tailwindcss from '@tailwindcss/vite';
  * which cannot tell the two `wxt build` outputs apart.
  *
  * The published id is a different one, and hire has to allowlist it as well.
+ *
+ * Firefox instead identifies extensions through
+ * `browser_specific_settings.gecko.id`, not a manifest `key`. A different id is
+ * used there, and hire's OAuth allowlist carries both redirect origins
+ * (`chromiumapp.org` for Chrome, `mozilla-extension.org` for Firefox).
  */
 const RELEASE = process.env.WXT_RELEASE === '1';
 
-const DEV_KEY =
+const CHROME_DEV_KEY =
   'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2GECbcIeOfNjo0xv8Q4bMKgLHN5qKCOQSYfVr3aTTHlIk1VliYT/Kb+xZiCyR34tBHFYlTaJATBWLIqmoTqQghXPMvM2LmNPo6ttNKuRdiNJNFvMz5M8RE7Qfgawj8EJo2dCTzWbSdRet2HLTKTBDLsZ/9F4RpXnDQrWVaqQqDvNO9CXT99UqBuzpuTXq3WyWJYcnSjDETND62jkW2kUKj0YpybpxMYDjC1NwoXGgI2f6z3gy2FB/ld3yiaYwVu2NwZGTILgmKLQKGrutHQktnVc27qoeBVvO0s8VMnJkf3kFJPPNmJktGAbnvdiGlx4wBEGBqVEqFBhBaj0GlE1dwIDAQAB';
 
+// Stable Firefox extension id — `browser_specific_settings.gecko.id`. Hire's
+// OAuth allowlist carries the matching `mozilla-extension.org` redirect origin.
+const FIREFOX_GECKO_ID = '{4f3e2a1b-5c6d-4e7f-8a9b-0c1d2e3f4a5b}';
+
 export default defineConfig({
+  browser: BROWSER,
+  manifestVersion: 3,
   modules: ['@wxt-dev/module-svelte'],
   vite: () => ({ plugins: [tailwindcss()] }),
   manifest: () =>
     ({
-      ...(RELEASE ? {} : { key: DEV_KEY }),
+      ...(RELEASE ? {} : BROWSER === 'chrome' ? { key: CHROME_DEV_KEY } : {}),
+      ...(BROWSER === 'firefox'
+        ? { browser_specific_settings: { gecko: { id: FIREFOX_GECKO_ID } } }
+        : {}),
       name: 'freehire',
       description: 'Your job-application agent, on any page.',
       // `debugger`/`downloads` back the "Attach tailored CV" action only: attaching the
       // debugger is what lets DOM.setFileInputFiles place a file into an
       // `input[type=file]`, since neither a page's own script nor a content script can
       // assign HTMLInputElement.files (see extension-attach-tailored-cv's design.md).
+      // Firefox does not implement the debugging protocol, so `debugger` is a
+      // Chrome-only permission — the action itself guards on `browser.debugger`
+      // being present and reports unavailability otherwise.
       permissions: [
         'storage',
         'tabs',
@@ -40,8 +62,7 @@ export default defineConfig({
         'scripting',
         'activeTab',
         'identity',
-        'debugger',
-        'downloads',
+        ...(BROWSER === 'chrome' ? ['debugger', 'downloads'] : ['downloads']),
       ],
       host_permissions: ['<all_urls>'],
       // `icons` is discovered from public/icon/*.png. The variants swap in the
@@ -57,7 +78,9 @@ export default defineConfig({
       // Both groups name their scheme: a group without `color_schemes` is a
       // wildcard, and the first match by array order wins — so a wildcard here
       // would shadow the dark one.
-      ...(RELEASE
+      //
+      // Firefox does not support `icon_variants` at all — it is Chrome-only.
+      ...(RELEASE && BROWSER === 'chrome'
         ? {
             icon_variants: [
               {

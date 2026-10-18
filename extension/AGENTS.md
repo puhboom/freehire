@@ -188,11 +188,16 @@ content --PAGE_SNAPSHOT--> background --> panel --> relay --> the agent, mid-tur
 
 cd design-system && pnpm install     # once, and after pulling design-system changes
 cd extension && npm install          # runs `wxt prepare` (generates .wxt/)
-cd extension && npm run dev          # dev build with HMR
-cd extension && npm run build        # production build -> .output/chrome-mv3
+cd extension && npm run dev          # dev build with HMR (Chrome)
+cd extension && npm run build:chrome # production build -> .output/chrome-mv3
                                      # targets freehire.me
                                      # (extension/.env.production); dev keeps
                                      # the localhost default
+cd extension && npm run build:firefox # Firefox build -> .output/firefox-mv3
+                                     # sets browser_specific_settings.gecko.id,
+                                     # drops Chrome-only keys (key, icon_variants,
+                                     # debugger permission); see docs/firefox-add-on.md
+cd extension && npm run build        # builds both Chrome and Firefox
 cd extension && npm test             # vitest: lib/**/*.test.ts
 cd extension && npm run check        # svelte-check
 ```
@@ -200,3 +205,26 @@ cd extension && npm run check        # svelte-check
 Load unpacked in Chrome: `chrome://extensions` → Developer mode → **Load
 unpacked** → `extension/.output/chrome-mv3`. Click the toolbar icon to open the
 panel.
+
+Load unpacked in Firefox: `about:debugging#/extensions/this-firefox` → **Load
+Temporary Add-on** → pick `extension/.output/firefox-mv3/manifest.json`.
+The dev `gecko.id` pins the extension id so the OAuth redirect origin stays
+stable; the published AMO build carries AMO's own id instead and hire's
+allowlist must cover both.
+
+## Firefox vs Chrome
+
+- **`browser.debugger`** is not implemented in Firefox, and the `debugger`
+  permission is not in its manifest. "Attach tailored CV" reports
+  "Attaching a tailored CV is not available in Firefox — open the job page in
+  Chrome instead." Everything else (sign in, match card, chat, agent autofill,
+  form autofill, read page) works identically.
+- **`icon_variants`** is Chrome-only; the Firefox manifest omits it and uses
+  `icons` (discovered from `public/icon/*.png`) like any other build.
+- **`browser.identity.launchWebAuthFlow`** works on Firefox, but the redirect
+  origin is `https://<id>.mozilla-extension.org/` instead of
+  `chromiumapp.org`. Hire's OAuth allowlist must cover both origins — the dev
+  one (`<gecko-id>.mozilla-extension.org`) and the AMO-published one.
+- `browser.sidePanel` and `side_panel` manifest key work on Firefox 127+; the
+  optional-chained `setPanelBehavior` call degrades gracefully on older
+  versions.

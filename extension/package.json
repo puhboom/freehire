@@ -6,8 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "wxt",
-    "build": "wxt build",
+    "build:chrome": "wxt build",
+    "build:firefox": "WXT_BROWSER=firefox wxt build",
+    "build": "npm run build:chrome && npm run build:firefox",
     "zip": "WXT_RELEASE=1 wxt zip",
+    "zip:chrome": "WXT_RELEASE=1 wxt zip",
+    "zip:firefox": "WXT_BROWSER=firefox WXT_RELEASE=1 wxt zip",
     "test": "vitest run",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "oxlint && eslint .",
